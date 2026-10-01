@@ -1,0 +1,413 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>昨天還是昨天 K×W</title>
+<style>
+:root{--bg:#120d1f;--fg:#fff3d6;--ac:#ffcf5c;--pn:#2a2142;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);overflow:hidden;touch-action:none;user-select:none}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+#h{position:fixed;left:12px;top:calc(env(safe-area-inset-top,0px) + 10px);background:#0008;padding:8px 12px;border-radius:10px;font-size:15px;max-width:70vw}
+#h small{color:#ddd}
+#cr{position:fixed;left:50%;top:50%;width:8px;height:8px;margin:-4px;border:2px solid #fffa;border-radius:50%;pointer-events:none}
+#tip{position:fixed;left:0;right:0;top:56%;text-align:center;font-size:17px;color:var(--ac);text-shadow:0 0 6px #000;pointer-events:none}
+#toast{position:fixed;left:0;right:0;top:20%;text-align:center;font-size:20px;opacity:0;transition:opacity .4s;pointer-events:none;text-shadow:0 0 8px #000}
+#big{position:fixed;left:0;right:0;top:30%;text-align:center;font-size:clamp(26px,7vw,52px);font-weight:700;color:#fff;text-shadow:0 0 18px #f0f;pointer-events:none}
+#f{position:fixed;inset:0;background:#000;opacity:0;transition:opacity .5s;pointer-events:none}
+#intro,#m{position:fixed;inset:0;background:#000d;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;gap:12px}
+#m{display:none;background:#000b}
+#intro h1{font-size:clamp(28px,7vw,48px);margin:0;color:var(--ac)}#intro p{max-width:520px;line-height:1.7;margin:0}
+button{background:var(--ac);color:#221;border:0;border-radius:10px;padding:10px 20px;font-size:17px;font-family:inherit}button.g{background:#5a4d78;color:#fff}
+.r{display:flex;gap:10px;font-size:28px}.d{width:48px;height:48px;font-size:24px;text-align:center;border-radius:8px;border:0}
+.gr{display:grid;grid-template-columns:90px 90px;gap:8px}.t{height:90px;font-size:22px;background:#6b5a96;color:#fff}.t.s{background:var(--ac);color:#221}
+#m h3{margin:0}#m p{margin:0;max-width:420px}
+#js{position:fixed;left:24px;bottom:calc(env(safe-area-inset-bottom,0px) + 28px);width:110px;height:110px;border-radius:50%;background:#fff2;display:none}
+#kn{position:absolute;left:35px;top:35px;width:40px;height:40px;border-radius:50%;background:#fff6}
+#bt{position:fixed;right:20px;bottom:calc(env(safe-area-inset-bottom,0px) + 28px);display:none;flex-direction:column;gap:14px}
+#bt button{width:74px;height:74px;border-radius:50%;opacity:.85}
+#mw{position:fixed;right:10px;top:calc(env(safe-area-inset-top,0px) + 10px);width:150px;display:none;background:#0008;border-radius:10px;padding:6px;font-size:12px;line-height:1.5;text-align:center}#mw canvas{width:138px;height:138px;display:block;margin:0 auto 4px}
+@media(pointer:coarse){#js{display:block}#bt{display:flex}}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="h"></div><div id="cr"></div><div id="tip"></div><div id="toast"></div><div id="big"></div><div id="f"></div>
+<div id="js"><div id="kn"></div></div>
+<div id="bt"><button id="bu">互動</button><button id="bj">跳</button></div>
+<div id="mw"><canvas id="mm" width="276" height="276"></canvas><div id="mh"></div></div>
+<div id="m"></div>
+<div id="intro"><h1>昨天還是昨天<br>K×W</h1>
+<p>時鐘永遠停在 23:59。你被困在生日的前一天，不管怎麼走，明天都不會來。<br>找出破綻、集齊 3 枚時空碎片，打破迴圈，迎接真正的生日。</p>
+<p style="font-size:14px;color:#cbb">電腦：WASD 移動、滑鼠轉視角（先點畫面）、空白鍵跳、E／點擊互動<br>手機：左側搖桿移動、右側滑動轉視角</p>
+<button id="go">開始遊戲</button></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const R=new THREE.WebGLRenderer({canvas:$('c'),antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,2));
+const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(70,1,.1,200),rc=new THREE.Raycaster();
+function rs(){R.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}addEventListener('resize',rs);rs();
+let P={x:0,y:0,z:5,vy:0,yaw:0,pit:0},lv=0,frag=0,items=[],plats=[],dyn=[],mod=false,started=false,zmin=-7.5,cur=null,shake=0,jmp=0,T=null,party=false;
+const joy={x:0,y:0},K={},O=['','解讀三道神諭：依序點選被遮住、重疊的字母','在迷宮中搜索 4 塊拼圖，回到畫框前拼出蛋糕，才能前往跑酷','找到巧克力交給守衛，再解開寶箱','把三塊碎片放上祭壇'];
+// ---------- helpers
+const box=(w,h,d,c,x,y,z)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color:c,roughness:.8}));m.position.set(x,y,z);sc.add(m);return m};
+const act=(m,tip,fn)=>{m.userData={tip,fn};items.push(m)};
+const rm=m=>{sc.remove(m);items=items.filter(i=>i!==m)};
+const toast=(t,ms=2600)=>{const e=$('toast');e.textContent=t;e.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.opacity=0,ms)};
+const sp=t=>{try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='zh-TW';speechSynthesis.speak(u)}catch(e){}};
+const show=h=>{$('m').innerHTML=h;$('m').style.display='flex';mod=true;document.exitPointerLock&&document.exitPointerLock()};
+const hide=()=>{$('m').style.display='none';mod=false};
+const hud=()=>{$('h').innerHTML=`第 ${lv} 關　💠 碎片 ${frag}/3<br><small>${O[lv]}</small>`};
+let ac;const tone=(f,d=.2,v=.1,t0=0,ty='sine')=>{try{ac=ac||new(window.AudioContext||webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime+t0;o.type=ty;o.frequency.value=f;g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d)}catch(e){}};
+const beep=()=>[660,880,1320].forEach((f,i)=>tone(f,.25,.12,i*.09));
+function label(t,x,y,z,ry,w=2.4,h=1.2,fs=64){const c=document.createElement('canvas');c.width=256;c.height=128;const g=c.getContext('2d');g.fillStyle='rgba(20,10,40,.6)';g.fillRect(0,0,256,128);g.fillStyle='#ffe9a8';g.font=fs+'px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(t,128,68);const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),transparent:true}));m.position.set(x,y,z);m.rotation.y=ry;sc.add(m);return m}
+function ck(){const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');g.font='40px serif';g.textAlign='center';for(let i=0;i<2;i++)for(let j=0;j<2;j++){const k=(i+j)%2;g.fillStyle=k?'#111':'#f2eee6';g.fillRect(i*64,j*64,64,64);g.fillStyle=k?'#aa9':'#998';g.fillText('✦',i*64+32,j*64+46)}const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(4,4);return t}
+function mkRoom0(c,bg=0x1a1428){sc.background=new THREE.Color(bg);sc.fog=new THREE.Fog(bg,12,60);sc.add(new THREE.AmbientLight(0xffffff,.8));const p=new THREE.PointLight(0xffe0b0,.9,40);p.position.set(0,5,0);sc.add(p);
+const f=new THREE.Mesh(new THREE.PlaneGeometry(16,16),new THREE.MeshStandardMaterial({map:ck()}));f.rotation.x=-Math.PI/2;sc.add(f);
+box(16,.5,16,0x2a2240,0,6.25,0);const n=box(16,6,.5,c,0,3,-8);box(16,6,.5,c,0,3,8);box(.5,6,16,c,-8,3,0);box(.5,6,16,c,8,3,0);
+for(const x of[-7,7])for(const z of[-7,-2.5,2.5,7]){const m=new THREE.Mesh(new THREE.CylinderGeometry(.35,.4,6),new THREE.MeshStandardMaterial({color:0xeeeeee}));m.position.set(x,3,z);sc.add(m)}
+return n}
+function mkRoom(c,bg){const n=mkRoom0(c,bg),GD=0xd4af37,CR=0xf3ece0,PI=Math.PI;
+const mk=(w,h,d,col,x,y,z)=>{const m=box(w,h,d,col,x,y,z);m.material.metalness=col==GD?.8:.1;m.material.roughness=col==GD?.3:.4;return m};
+// 大理石地板 + 金色星芒
+const cv=document.createElement('canvas');cv.width=cv.height=512;const g=cv.getContext('2d');g.fillStyle='#efe9df';g.fillRect(0,0,512,512);
+for(let i=0;i<50;i++){g.strokeStyle=`rgba(110,100,130,${Math.random()*.25})`;g.lineWidth=Math.random()*2+.5;g.beginPath();let x=Math.random()*512,y=0;g.moveTo(x,0);for(;y<512;y+=32){x+=Math.random()*40-20;g.lineTo(x,y)}g.stroke()}
+g.translate(256,256);g.strokeStyle='#c9a227';g.fillStyle='rgba(201,162,39,.2)';g.lineWidth=4;for(let r=0;r<2;r++){g.beginPath();for(let i=0;i<16;i++){const a=i*PI/8,l=i%2?90:240-r*80;g.lineTo(Math.cos(a)*l,Math.sin(a)*l)}g.closePath();g.fill();g.stroke()}g.beginPath();g.arc(0,0,250,0,7);g.stroke();
+const fl=new THREE.Mesh(new THREE.PlaneGeometry(15.6,15.6),new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(cv),roughness:.3,metalness:.1}));fl.rotation.x=-PI/2;fl.position.y=.02;sc.add(fl);
+// 红毯
+box(2.2,.03,15.4,0x8a1230,0,.05,0);mk(.1,.04,15.4,GD,-1.15,.06,0);mk(.1,.04,15.4,GD,1.15,.06,0);
+// 金饰条（北墙不加，第二关会降下）
+[.15,5.5].forEach(y=>{mk(.1,.3,15.4,GD,-7.7,y,0);mk(.1,.3,15.4,GD,7.7,y,0);mk(15.4,.3,.1,GD,0,y,7.7)});
+// 柱子底座与柱头
+for(const x of[-7,7])for(const z of[-7,-2.5,2.5,7]){mk(1,.3,1,CR,x,.15,z);mk(1.05,.45,1.05,GD,x,5.75,z);mk(.9,.2,.9,CR,x,5.45,z)}
+// 彩绘玻璃窗
+const gl=()=>{const c=document.createElement('canvas');c.width=128;c.height=256;const q=c.getContext('2d');q.beginPath();q.moveTo(0,256);q.lineTo(0,64);q.arc(64,64,64,PI,0);q.lineTo(128,256);q.closePath();q.clip();q.fillStyle='#222';q.fillRect(0,0,128,256);for(let j=0;j<8;j++)for(let i=0;i<4;i++){q.fillStyle=`hsl(${(i*53+j*37+Math.random()*30)%360},80%,${50+((i+j)%2)*12}%)`;q.fillRect(i*32+3,j*32+3,26,26)}return new THREE.CanvasTexture(c)};
+[-5,0,5].forEach(z=>{[[-7.7,PI/2],[7.7,-PI/2]].forEach(([x,ry])=>{const w=new THREE.Mesh(new THREE.PlaneGeometry(1.4,2.8),new THREE.MeshBasicMaterial({map:gl(),transparent:true}));w.position.set(x,4.1,z);w.rotation.y=ry;sc.add(w)});});
+[[-5,0xff88cc],[5,0x88aaff]].forEach(([x,col])=>{const l=new THREE.PointLight(col,.7,12);l.position.set(x,4.2,0);sc.add(l)});
+// 火盆
+[[-6.4,-6.4],[6.4,-6.4],[-6.4,6.4],[6.4,6.4]].forEach(([x,z],i)=>{const p=new THREE.Mesh(new THREE.CylinderGeometry(.3,.2,1.1,12),new THREE.MeshStandardMaterial({color:GD,metalness:.8,roughness:.3}));p.position.set(x,.55,z);sc.add(p);
+const b=new THREE.Mesh(new THREE.CylinderGeometry(.4,.25,.25,12),p.material);b.position.set(x,1.2,z);sc.add(b);
+const f=new THREE.Mesh(new THREE.ConeGeometry(.22,.6,8),new THREE.MeshBasicMaterial({color:0xffaa33}));f.position.set(x,1.65,z);sc.add(f);
+let l;if(i<2){l=new THREE.PointLight(0xff9944,.8,12);l.position.set(x,2,z);sc.add(l)}
+dyn.push(()=>{f.scale.set(1,.8+Math.random()*.5,1);if(l)l.intensity=.6+Math.random()*.4})});
+// 吊灯
+const ch=new THREE.Mesh(new THREE.TorusGeometry(1.4,.07,8,40),new THREE.MeshStandardMaterial({color:GD,metalness:.8,roughness:.3}));ch.rotation.x=PI/2;ch.position.y=5;sc.add(ch);
+for(let i=0;i<8;i++){const a=i*PI/4,s=new THREE.Mesh(new THREE.SphereGeometry(.1),new THREE.MeshBasicMaterial({color:0xfff0b0}));s.position.set(Math.cos(a)*1.4,5.15,Math.sin(a)*1.4);sc.add(s)}
+const cn=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,1.2),ch.material);cn.position.y=5.6;sc.add(cn);
+// 天花板藻井
+[[-4,-4],[4,-4],[-4,4],[4,4],[0,0]].forEach(([x,z])=>{mk(3,.08,3,GD,x,5.96,z);mk(2.6,.1,2.6,0x3a2f55,x,5.95,z)});
+// 雕像
+[-5.8,5.8].forEach(x=>{mk(1,.9,1,CR,x,.45,5.8);const m=new THREE.MeshStandardMaterial({color:0xfafafa,roughness:.3});[[0,.6,0,.32,.4,1.3],[0,1.65,0,.22]].forEach(([a,b,cc,r,r2,h],k)=>{const o=new THREE.Mesh(k?new THREE.SphereGeometry(r):new THREE.CylinderGeometry(r,r2,h,12),m);o.position.set(x,k?2.2:1.55,5.8);sc.add(o)});const sh=new THREE.Mesh(new THREE.SphereGeometry(.38),m);sh.scale.y=.45;sh.position.set(x,2.0,5.8);sc.add(sh);const lr=new THREE.Mesh(new THREE.TorusGeometry(.2,.03,6,16),new THREE.MeshStandardMaterial({color:GD,metalness:.8}));lr.rotation.x=PI/2;lr.position.set(x,2.4,5.8);sc.add(lr)});
+// 漂浮光尘
+const N=160,pa=new Float32Array(N*3);for(let i=0;i<N*3;i+=3){pa[i]=Math.random()*15-7.5;pa[i+1]=Math.random()*6;pa[i+2]=Math.random()*15-7.5}
+const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pa,3));sc.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0xffeeaa,size:.07,transparent:true,opacity:.7})));
+dyn.push(dt=>{for(let i=1;i<N*3;i+=3){pa[i]+=dt*.12;if(pa[i]>6)pa[i]=0}pg.attributes.position.needsUpdate=true;ch.rotation.z+=dt*.3});
+return n}
+function portal(x,y,z){const m=new THREE.Mesh(new THREE.CircleGeometry(1.1,32),new THREE.MeshBasicMaterial({color:0x66ccff,side:2,transparent:true,opacity:.7}));m.position.set(x,y+1.3,z);sc.add(m);const r=new THREE.Mesh(new THREE.TorusGeometry(1.15,.09,8,32),new THREE.MeshBasicMaterial({color:0xffffff}));r.position.copy(m.position);sc.add(r);act(m,'進入時空傳送門',()=>go(lv+1));dyn.push(()=>{m.material.opacity=.55+Math.sin(performance.now()/200)*.2})}
+function getFrag(){frag++;beep();toast(`獲得時空碎片 ${frag}/3 ✨`);hud()}
+function go(n){$('f').style.opacity=1;setTimeout(()=>{sc.clear();items=[];plats=[];dyn=[];lv=n;zmin=-7.5;MZ=null;MM=null;pkOn=0;$('mw').style.display='none';RS=[0,5];Object.assign(P,{x:0,y:0,z:5,vy:0,yaw:0,pit:0});[0,L1,L2,L3,L4][n]();hud();sp(O[n]);$('f').style.opacity=0},500)}
+// ---------- Level 1
+const D=[7,2,9,4],S=['⭐','❤️','⭕','🟥'];let door,ck_=0;
+function L1(){mkRoom(0x8a7f9a);
+label('📜 神諭石板',-4,2.5,-7.7,0,3,.9,40);label('互動大門 → 解讀被遮住的字母',4,2.2,-7.7,0,3.2,.9,30);
+door=box(3,4.5,.4,0x553322,0,2.25,-7.7);act(door,'封印大門（互動）',lock)}
+let L1r=0,L1a=[],L1d=[],L1i=0,L1t=0;
+function lock(){L1r=0;nR()}
+function nR(){const n=[3,4,5][L1r],ab=[...'ABCDEFGHI'].sort(()=>Math.random()-.5);L1a=ab.slice(0,n);L1d=ab.slice(n,n+2);L1i=0;
+show(`<h3>神諭 ${L1r+1}/3</h3><p>字母互相重疊、被石板遮擋。請由左到右依序點選字母，點錯會重新降下神諭。</p><canvas id="lc" width="300" height="220" style="border-radius:8px;border:3px solid #6b5a3c;max-width:90vw"></canvas><div style="display:grid;grid-template-columns:repeat(3,64px);gap:8px">${[...'ABCDEFGHI'].map(c=>`<button id="p${c}" class="t" style="height:56px;font-size:26px" onclick="pk1('${c}')">${c}</button>`).join('')}</div><button class="g" onclick="hide()">離開</button>`);
+const k=++L1t,f=t=>{if(k!=L1t||!$('lc')||$('m').style.display=='none')return;lcD(t);requestAnimationFrame(f)};requestAnimationFrame(f)}
+function lcD(t){const g=$('lc').getContext('2d'),W=300,H=220,n=L1a.length,sp=Math.min(62,200/(n-1)),r=L1r;
+g.fillStyle='#b7ab80';g.fillRect(0,0,W,H);g.textAlign='center';g.textBaseline='middle';g.font='bold 120px serif';g.lineWidth=3;g.strokeStyle='#1d2a24';
+const dr=(ch,i,al,dk)=>{const x=W/2+(i-(n-1)/2)*sp,y=H/2+(r?Math.sin(t/(500-r*80)+i*2.1)*(8+r*9):0),a=Math.sin(i*5.3)*.35+(r>1?Math.sin(t/700+i)*.15:0);g.save();g.globalAlpha=al;g.translate(x,y);g.rotate(a);if(dk){g.fillStyle='#24362e';g.fillText(ch,0,0)}else{g.fillStyle='#e6e0b0';g.strokeText(ch,0,0);g.fillText(ch,0,0)}g.restore()};
+if(r)L1d.forEach((c,j)=>dr(c,j?n-1.5:.5,.3,j));
+L1a.forEach((c,i)=>dr(c,i,1,i%2==0));
+if(r){const y0=30,h=H-60,ww=r>1?85:125,wx=(Math.sin(t/(r>1?650:900))+1)/2*(W-ww);g.save();g.beginPath();g.rect(0,y0,W,h);g.rect(wx,y0,ww,h);g.clip('evenodd');g.fillStyle='#6a5535';g.fillRect(0,y0,W,h);g.strokeStyle='#463620';g.lineWidth=2;for(let k=0;k<W;k+=14){g.beginPath();g.moveTo(k,y0);g.lineTo(k,y0+h);g.stroke()}g.restore()}}
+function pk1(c){if(c==L1a[L1i]){$('p'+c).style.visibility='hidden';tone(660,.15,.1);if(++L1i==L1a.length){if(++L1r==3){hide();rm(door);door.visible=false;getFrag();portal(0,0,-6.4)}else{toast('神諭應驗！下一道更難');nR()}}}else{toast('順序不對，神諭重新降下');nR()}}
+// ---------- Level 2 (迷宮)
+let MM=null,pkOn=0,eat=0;let pc=0,pa=[2,1,3,4],ps=-1,MZ=null,RS=[0,5],cakeU='',OP=null;const QP={1:'0% 0%',2:'100% 0%',4:'0% 100%',3:'100% 100%'};
+function cake(){const c=document.createElement('canvas');c.width=c.height=180;const g=c.getContext('2d'),r=g.createLinearGradient(0,0,180,180);r.addColorStop(0,'#ffd1e8');r.addColorStop(1,'#ffe9a8');g.fillStyle=r;g.fillRect(0,0,180,180);g.font='120px serif';g.textAlign='center';g.textBaseline='middle';g.fillText('🎂',90,98);g.font='26px serif';g.fillText('🎉',24,24);g.fillText('🎈',156,24);g.fillText('🎁',24,158);g.fillText('✨',156,158);return c}
+function L2(){pc=0;ps=-1;pa=[2,1,3,4];const cv=cake();cakeU=cv.toDataURL();
+sc.background=new THREE.Color(0x07050d);sc.fog=new THREE.Fog(0x07050d,2,15);sc.add(new THREE.AmbientLight(0xffffff,.6));
+const C=12,n=2*C+1,S=2.4,g=Array.from({length:n},()=>Array(n).fill(1)),st=[[1,1]];g[1][1]=0;
+while(st.length){const[r,q]=st[st.length-1],nb=[[-2,0],[2,0],[0,-2],[0,2]].filter(([a,b])=>{const y=r+a,x=q+b;return y>0&&x>0&&y<n-1&&x<n-1&&g[y][x]});if(!nb.length){st.pop();continue}const[a,b]=nb[Math.random()*nb.length|0];g[r+a/2][q+b/2]=0;g[r+a][q+b]=0;st.push([r+a,q+b])}
+const X=c=>(c-(n-1)/2)*S,Z=r=>(r-(n-1)/2)*S,D4=[[1,0],[-1,0],[0,1],[0,-1]];
+const dist=g.map(r=>r.map(()=>-1));dist[1][1]=0;const qu=[[1,1]];for(let i=0;i<qu.length;i++){const[r,c]=qu[i];D4.forEach(([a,b])=>{const y=r+a,x=c+b;if(!g[y][x]&&dist[y][x]<0){dist[y][x]=dist[r][c]+1;qu.push([y,x])}})}
+let ec=1;for(let c=1;c<n-1;c+=2)if(dist[1][c]>dist[1][ec])ec=c;
+const de=[];for(let r=1;r<n-1;r++)for(let c=1;c<n-1;c++)if(!g[r][c]&&(r!=1||c!=1)&&!(r==1&&c==ec)&&D4.filter(([a,b])=>!g[r+a][c+b]).length==1)de.push([r,c,dist[r][c]]);
+de.sort((a,b)=>b[2]-a[2]);const pcs=[];for(const d of de)if(pcs.length<4&&pcs.every(p=>Math.abs(p[0]-d[0])+Math.abs(p[1]-d[1])>=8))pcs.push(d);for(const d of de)if(pcs.length<4&&!pcs.includes(d))pcs.push(d);
+// 墙、地、天花板
+const bc=document.createElement('canvas');bc.width=bc.height=128;const bq=bc.getContext('2d');bq.fillStyle='#7a6a8c';bq.fillRect(0,0,128,128);bq.strokeStyle='#3a2f4a';bq.lineWidth=3;for(let j=0;j<4;j++){bq.strokeRect(-2,j*32,132,32);for(let i=0;i<3;i++){const o=j%2?16:0;bq.beginPath();bq.moveTo(i*42+o,j*32);bq.lineTo(i*42+o,j*32+32);bq.stroke()}}
+const wl=[];for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(g[r][c])wl.push([r,c]);
+const im=new THREE.InstancedMesh(new THREE.BoxGeometry(S,4,S),new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(bc),roughness:.9}),wl.length),idx={};im.frustumCulled=false;
+wl.forEach(([r,c],i)=>{idx[r*n+c]=i;im.setMatrixAt(i,new THREE.Matrix4().makeTranslation(X(c),2,Z(r)))});sc.add(im);
+const ft=ck();ft.repeat.set(12,12);const fl=new THREE.Mesh(new THREE.PlaneGeometry(n*S,n*S),new THREE.MeshStandardMaterial({map:ft,roughness:.4}));fl.rotation.x=-Math.PI/2;sc.add(fl);
+const ce=new THREE.Mesh(new THREE.PlaneGeometry(n*S,n*S),new THREE.MeshStandardMaterial({color:0x1a1428}));ce.rotation.x=Math.PI/2;ce.position.y=4;sc.add(ce);
+const tl=new THREE.PointLight(0xffd9a0,1.3,13);sc.add(tl);dyn.push(()=>tl.position.set(P.x,P.y+2.2,P.z));
+MZ={n,S,g,open:false,in:(x,z)=>{const c=Math.floor(x/S+n/2),r=Math.floor(z/S+n/2);return r>=0&&r<n&&c>=0&&c<n},bl:(x,z)=>[[-.4,-.4],[.4,-.4],[-.4,.4],[.4,.4]].some(([a,b])=>{const c=Math.floor((x+a)/S+n/2),r=Math.floor((z+b)/S+n/2);if(c<0||c>=n||r>=n)return true;if(r<0)return !MZ.open;return g[r][c]})};
+P.x=X(1);P.z=Z(1);P.yaw=!g[1][2]?-Math.PI/2:Math.PI;RS=[X(1),Z(1)];
+// 拼图
+MM={n,S,g,ms:[]};$('mw').style.display='block';pcs.forEach(([r,c])=>{const m=box(.45,.45,.45,0xffcc33,X(c),1.1,Z(r));MM.ms.push(m);m.material.emissive=new THREE.Color(0xaa7700);m.add(new THREE.PointLight(0xffcc33,.7,5));act(m,'拼圖塊（互動）',()=>{rm(m);beep();toast(`拼圖 ${++pc}/4`);if(pc==4)toast('四塊都找到了！回到畫框前拼出蛋糕',4500)});dyn.push(dt=>{m.rotation.y+=dt*2;m.position.y=1.1+Math.sin(performance.now()/300)*.1;return !m.parent})});
+// 画框
+const fcv=document.createElement('canvas');fcv.width=fcv.height=180;const fg=fcv.getContext('2d');fg.fillStyle='#1c1530';fg.fillRect(0,0,180,180);fg.fillStyle='#ffe9a8';fg.font='24px sans-serif';fg.textAlign='center';fg.fillText('缺少蛋糕拼圖',90,95);const ft2=new THREE.CanvasTexture(fcv);
+const fx=X(ec),fz=Z(1);MM.fx=fx;MM.fz=fz;box(1,1,.5,0x333344,fx,.5,fz);const fr=box(1.6,1.6,.12,0xd4af37,fx,1.8,fz);fr.material.metalness=.8;
+[1,-1].forEach(s=>{const p=new THREE.Mesh(new THREE.PlaneGeometry(1.3,1.3),new THREE.MeshBasicMaterial({map:ft2}));p.position.set(fx,1.8,fz+s*.07);p.rotation.y=s>0?0:Math.PI;sc.add(p);act(p,'拼圖畫框（互動）',frfn)});
+function frfn(){if(MZ.open)return;if(pc<4)toast(`畫框還缺 ${4-pc} 塊拼圖，去迷宮裡搜索吧`);else pr()}
+act(fr,'拼圖畫框（互動）',frfn);
+OP=()=>{fg.drawImage(cv,0,0);ft2.needsUpdate=true;toast('蛋糕拼好了！出口打開了，前往跑酷吧！',4500);g[0][ec]=0;MZ.open=true;im.setMatrixAt(idx[ec],new THREE.Matrix4().makeScale(0,0,0));im.instanceMatrix.needsUpdate=true;
+sc.fog.near=8;sc.fog.far=70;sc.background.set(0x1a1440);const ze=-n/2*S;RS=[X(ec),ze+S/2];let x,z,t;
+for(let i=0;i<10;i++){x=Math.max(-26,Math.min(26,X(ec)+Math.sin(i*.9)*4));z=ze-3-3.6*i;t=i*.3;box(2.4,1,2.4,i%2?0xc9a0dc:0x88ccee,x,t-.5,z);plats.push({x,z,w:2.4,d:2.4,top:t})}
+const m=box(.5,.5,.5,0xffcc33,x,t+.9,z);m.material.emissive=new THREE.Color(0xaa7700);act(m,'時空碎片（互動）',()=>{rm(m);getFrag();portal(x,t,z-.6)})}}
+function pr(){show(`<h3>拼出蛋糕畫面 🎂</h3><p>點兩塊互換位置。編號：左上1　右上2　左下4　右下3</p><div class="gr">${pa.map((n,i)=>`<button class="t" onclick="pk(${i})" style="background:url(${cakeU}) ${QP[n]}/200% 200%;color:#fff;font-weight:700;text-shadow:0 0 4px #000;outline:${ps==i?'4px solid #ffcf5c':'none'}">${n}</button>`).join('')}</div>`)}
+function pk(i){if(ps<0)ps=i;else{[pa[ps],pa[i]]=[pa[i],pa[ps]];ps=-1}if(pa.join()=='1,2,4,3'){hide();OP()}else pr()}
+// ---------- Level 3
+let choc=0,npcOk=0;
+let st3=0,kil3=0,coin3=0,choc3=0,ok3=0,gun3=null;const R3=26,GX=-13,GZ=-12.5,CX=-15.5,CZ=-15;
+const M3=c=>new THREE.MeshStandardMaterial({color:c,roughness:.8});
+function pb(g,w,h,d,c,x,y,z){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),M3(c));m.position.set(x,y,z);g.add(m);return m}
+function ps3(g,geo,c,x,y,z){const m=new THREE.Mesh(geo,M3(c));m.position.set(x,y,z);g.add(m);return m}
+function person(o){const g=new THREE.Group(),sk=o.skin||0xf0c8a0,tu=o.tunic||0xcc3333,pa=o.pants||0xe8dcc0;
+ps3(g,new THREE.CylinderGeometry(.09,.09,.12),sk,0,1.55,0);pb(g,.5,.6,.28,tu,0,1.2,0);pb(g,.52,.07,.3,0x4a2a10,0,.9,0);pb(g,.55,.22,.3,tu,0,.78,0);
+[-1,1].forEach(s=>{pb(g,.19,.6,.21,pa,s*.13,.4,0);pb(g,.22,.08,.3,0x5a3a1a,s*.13,.04,.04);pb(g,.15,.28,.17,tu,s*.34,1.3,0);pb(g,.12,.3,.14,sk,s*.34,1.0,0);ps3(g,new THREE.SphereGeometry(.07),sk,s*.34,.83,0);ps3(g,new THREE.SphereGeometry(.025),0x111111,s*.07,1.8,.18)});
+ps3(g,new THREE.SphereGeometry(.2,14,10),sk,0,1.78,0);
+if(o.helm){ps3(g,new THREE.SphereGeometry(.23,14,8,0,6.29,0,1.57),o.helm,0,1.8,0);pb(g,.06,.16,.34,o.crest||0xcc2222,0,2.05,0)}else ps3(g,new THREE.SphereGeometry(.215,14,8,0,6.29,0,1.4),o.hair||0x3a2410,0,1.8,0);
+if(o.laurel){ps3(g,new THREE.TorusGeometry(.2,.025,6,16),0x4a8a2a,0,1.92,0).rotation.x=Math.PI/2}
+if(o.cape)pb(g,.5,.85,.04,o.cape,0,1.1,-.18);
+if(o.sword){pb(g,.05,.7,.05,0xcfd3d8,.4,1.15,.12);pb(g,.2,.04,.06,0xd4af37,.4,.8,.12)}
+if(o.shield){const s=ps3(g,new THREE.CylinderGeometry(.28,.28,.05,16),o.shield,-.42,1.1,.12);s.rotation.x=Math.PI/2;ps3(g,new THREE.SphereGeometry(.07),0xd4af37,-.42,1.1,.16)}
+if(o.hold){pb(g,.16,.07,.1,o.hold,.34,.87,.12);if(o.hold==0x4a2410)pb(g,.05,.075,.11,0xd4af37,.34,.87,.12)}
+g.scale.setScalar(o.s||1);sc.add(g);return g}
+function L3(){st3=kil3=coin3=choc3=ok3=0;gun3=null;O[3]='前往競技場正中央，找商人';
+sc.background=new THREE.Color(0x9ec9e8);sc.fog=new THREE.Fog(0x9ec9e8,30,110);sc.add(new THREE.AmbientLight(0xffffff,.9));const su=new THREE.DirectionalLight(0xfff0d0,.7);su.position.set(20,40,10);sc.add(su);
+ps3(sc,new THREE.CircleGeometry(R3+1,48),0xdcc48c,0,0,0).rotation.x=-Math.PI/2;
+[[3,3.4],[10,10.4]].forEach(([a,b])=>{const r=new THREE.Mesh(new THREE.RingGeometry(a,b,40),M3(0xb89a5a));r.rotation.x=-Math.PI/2;r.position.y=.02;sc.add(r)});
+[[R3+1,6,0xe3d2aa],[R3+5,10,0xd6c295],[R3+9,14,0xc9b283],[R3+13,18,0xbca372]].forEach(([r,h,c])=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,48,1,true),new THREE.MeshStandardMaterial({color:c,side:THREE.BackSide}));m.position.y=h/2;sc.add(m)});
+for(let i=0;i<28;i++){const a=i/28*6.283,b=a+3.14159/28;const w=pb(sc,2.2,3.2,.3,0x3a2a1a,Math.sin(a)*(R3+.9),1.6,Math.cos(a)*(R3+.9));w.rotation.y=a;ps3(sc,new THREE.CylinderGeometry(.3,.3,5.5),0xf3ece0,Math.sin(b)*(R3+.7),2.75,Math.cos(b)*(R3+.7))}
+MZ={open:false,in:(x,z)=>x*x+z*z<(R3+1)**2,bl:(x,z)=>x*x+z*z>(R3-1.2)**2};P.x=0;P.z=R3-3;RS=[0,R3-3];
+// 商人與攤位
+const mg=person({tunic:0x6a2c91,pants:0x3a2a50,hair:0x222222,cape:0xd4af37,laurel:1,skin:0xe0b080});mg.position.set(0,0,0);ag(mg,'商人（對話）',mer);
+const tb=pb(sc,2.2,.9,.9,0x7a4a22,0,.45,1.3);ag2(tb,'商人（對話）');for(let i=0;i<4;i++)ps3(sc,new THREE.CylinderGeometry(.14,.14,.03,12),0xffd700,-.7+i*.45,.93,1.3);
+// 士兵（守衛 + 裝飾）
+const gd=person({tunic:0xaa2222,pants:0xcfcfcf,helm:0xc9a227,crest:0xcc2222,cape:0x8a1a1a,sword:1,shield:0xaa2222,s:1.1});gd.position.set(GX,0,GZ);gd.rotation.y=Math.atan2(-GX,-GZ);ag(gd,'守衛士兵（對話）',guard);
+for(let i=0;i<8;i++){const a=i/8*6.283+.4,x=Math.sin(a)*24,z=Math.cos(a)*24;if(Math.hypot(x-GX,z-GZ)<5)continue;const t=person({tunic:0xaa2222,pants:0xcfcfcf,helm:0xc9a227,crest:i%2?0xcc2222:0x2244aa,cape:0x8a1a1a,sword:1,shield:0xaa2222,s:1.08});t.position.set(x,0,z);t.rotation.y=Math.atan2(-x,-z)}
+// 寶箱
+const ch=new THREE.Group();pb(ch,1.4,.7,.9,0xb8860b,0,.35,0);const ld=ps3(ch,new THREE.CylinderGeometry(.45,.45,1.4,12,1,false,0,3.1416),0xd4af37,0,.7,0);ld.rotation.z=Math.PI/2;ld.rotation.y=Math.PI/2;pb(ch,.2,.25,.05,0x333333,0,.55,.47);ch.position.set(CX,0,CZ);ch.rotation.y=Math.atan2(-CX,-CZ);sc.add(ch);
+ag(ch,'終極寶箱（互動）',()=>{if(!ok3)return toast('寶箱被魔法鎖住了…');tetris(500,()=>{getFrag();portal(CX+3.2,0,CZ)})});
+toast('競技場好大！走到正中央找商人',4000)}
+const ag=(g,tip,fn)=>g.traverse(m=>{if(m.isMesh)act(m,tip,fn)}),ag2=(m,tip)=>act(m,tip,mer),rg=g=>{g.traverse(m=>{if(m.isMesh)items=items.filter(i=>i!==m)});sc.remove(g)};
+function s3(n){st3=n;if(n==1){mkGun();for(let i=0;i<3;i++)mon();O[3]='拿槍擊倒怪物 0/3';toast('獲得槍！對準怪物按互動射擊',3500)}
+if(n==2){O[3]='回去找商人還槍';toast('怪物都倒下了！回去找商人',3500)}
+if(n==3){cam.remove(gun3);gun3=null;coin3=1;O[3]='拿金幣找手拿棕色巧克力的觀眾';beep();toast('槍已收回，獲得金幣 🪙 觀眾湧入了！',4000);crowd()}
+if(n==4){O[3]='把巧克力交給守衛士兵'}hud()}
+function mer(){if(st3==0)show(`<h3>商人</h3><p>想要金幣？打仗就能換！借你一把槍，去擊倒場上 3 隻怪物（對準怪物按互動射擊），回來我就給你金幣。</p><button onclick="hide();s3(1)">接下任務</button>`);
+else if(st3==1)show(`<h3>商人</h3><p>還有怪物沒打倒呢，加油！（${kil3}/3）</p><button onclick="hide()">好</button>`);
+else if(st3==2)show(`<h3>商人</h3><p>幹得漂亮！槍我收回了，這枚金幣給你。觀眾們都來了，找找看誰手上拿著棕色的巧克力。</p><button onclick="hide();s3(3)">收下</button>`);
+else show(`<h3>商人</h3><p>拿著金幣去找手上拿著棕色方塊的觀眾吧。</p><button onclick="hide()">好</button>`)}
+function mkGun(){const g=new THREE.Group();pb(g,.06,.08,.45,0x333333,0,0,0);pb(g,.05,.16,.07,0x5a3a1a,0,-.1,.12);pb(g,.07,.07,.06,0xd4af37,0,0,-.2);g.position.set(.25,-.22,-.5);cam.add(g);sc.add(cam);gun3=g}
+function mon(){const g=new THREE.Group();ps3(g,new THREE.SphereGeometry(.6,14,10),0x66bb44,0,.6,0);[-1,1].forEach(s=>{ps3(g,new THREE.SphereGeometry(.14),0xffffff,s*.22,.8,.5);ps3(g,new THREE.SphereGeometry(.07),0x111111,s*.22,.8,.62);const h=ps3(g,new THREE.ConeGeometry(.1,.3,8),0xeeeeaa,s*.3,1.2,0);h.rotation.z=-s*.3});
+const a=Math.random()*6.28,r=8+Math.random()*10;g.position.set(Math.sin(a)*r,0,Math.cos(a)*r);sc.add(g);let tx=g.position.x,tz=g.position.z,t0=Math.random()*9,dead=0;
+ag(g,'怪物（互動射擊）',()=>{if(!gun3)return toast('需要槍才能打');dead=1;rg(g);kil3++;tone(200,.2,.15,0,'square');gun3.position.z=-.38;setTimeout(()=>gun3&&(gun3.position.z=-.5),90);toast(`擊倒怪物 ${kil3}/3`);O[3]=`拿槍擊倒怪物 ${kil3}/3`;hud();if(kil3==3)s3(2)});
+dyn.push(dt=>{if(dead)return true;t0+=dt;if(Math.hypot(tx-g.position.x,tz-g.position.z)<.5){const b=Math.random()*6.28,q=6+Math.random()*14;tx=Math.sin(b)*q;tz=Math.cos(b)*q}const dx=tx-g.position.x,dz=tz-g.position.z,l=Math.hypot(dx,dz)||1;g.position.x+=dx/l*1.3*dt;g.position.z+=dz/l*1.3*dt;g.position.y=Math.abs(Math.sin(t0*5))*.25;g.rotation.y=Math.atan2(dx,dz)})}
+function crowd(){const n=10+(Math.random()*11|0),pts=[];let tr=0;while(pts.length<n&&tr++<800){const a=Math.random()*6.28,r=9+Math.random()*13,x=Math.sin(a)*r,z=Math.cos(a)*r;if(pts.every(p=>Math.hypot(p[0]-x,p[1]-z)>2.4)&&Math.hypot(x-GX,z-GZ)>3&&Math.hypot(x-CX,z-CZ)>3&&r>5)pts.push([x,z])}
+const ci=Math.random()*pts.length|0,pk=a=>a[Math.random()*a.length|0];
+pts.forEach(([x,z],i)=>{const g=person({skin:pk([0xf0c8a0,0xd9a070,0x9a6a40,0xffe0c0]),tunic:pk([0xd94a4a,0x3a6fc4,0x3aa86a,0xe8c24a,0xb05ac4,0xf08a3a]),pants:pk([0xe8dcc0,0x5a4a3a,0x334466]),hair:pk([0x2a1a0a,0x6a3a1a,0xc9a040,0x111111,0x999999]),laurel:Math.random()<.25,cape:Math.random()<.2?0x992244:0,hold:i==ci?0x4a2410:pk([0xe84a8a,0xeeeeee,0xffcc33,0x66ccff]),s:.92+Math.random()*.16});
+g.position.set(x,0,z);g.rotation.y=Math.atan2(-x,-z)+(Math.random()-.5)*.6;ag(g,'觀眾（對話）',()=>spec(i==ci));let t=Math.random()*9;dyn.push(dt=>{t+=dt;g.position.y=Math.abs(Math.sin(t*3))*.07})});tone(220,1,.1)}
+function spec(c){if(c){if(coin3)show(`<h3>觀眾</h3><p>哈，你有金幣！這塊巧克力就換給你吧。</p><button onclick="hide();coin3=0;choc3=1;beep();toast('獲得巧克力 🍫');s3(4)">交換</button>`);else if(choc3)show(`<h3>觀眾</h3><p>巧克力已經給你啦！</p><button onclick="hide()">好</button>`);else show(`<h3>觀眾</h3><p>我有巧克力，但我只收一枚金幣。</p><button onclick="hide()">好</button>`)}
+else show(`<h3>觀眾</h3><p>${['加油！今天的競技場真熱鬧！','我手上拿的可不是巧克力喔～','聽說有人帶著巧克力，是棕色的長方塊。','啊～好想吃甜點。','找找看手拿棕色方塊的人吧。'][Math.random()*5|0]}</p><button onclick="hide()">好</button>`)}
+function guard(){if(ok3)show(`<h3>守衛士兵</h3><p>寶箱已經解開，快去吧！</p><button onclick="hide()">好</button>`);else if(!choc3)show(`<h3>守衛士兵</h3><p>……好餓。聽說觀眾裡有人帶著巧克力。</p><button onclick="hide()">好</button>`);else show(`<h3>守衛士兵</h3><p>巧克力！謝謝你。旁邊的終極寶箱已解鎖，去打開它吧！</p><button onclick="hide();choc3=0;ok3=1;O[3]='打開終極寶箱，玩魔法方塊';hud()">好</button>`)}
+function tetris(goal,win){const W=10,H=18,Z=18,SH=[[[1,1,1,1]],[[1,1],[1,1]],[[0,1,0],[1,1,1]],[[1,0,0],[1,1,1]],[[0,0,1],[1,1,1]],[[0,1,1],[1,1,0]],[[1,1,0],[0,1,1]]],CL=['#0ff','#ff0','#a0f','#46f','#f80','#0f0','#f33'];
+let g,pt=0,c,x,y,ty,iv;
+show(`<h3>魔法方塊　目標 ${goal} 分</h3><canvas id="tc" width="180" height="324" style="background:#111;border-radius:6px"></canvas><div id="tsc"></div><div class="r"><button onclick="T('ArrowLeft')">◀</button><button onclick="T('ArrowUp')">⟳</button><button onclick="T('ArrowDown')">▼</button><button onclick="T('ArrowRight')">▶</button></div>`);
+const q=$('tc').getContext('2d');
+const hit=(s,a,b)=>s.some((r,j)=>r.some((v,i)=>v&&(a+i<0||a+i>=W||b+j>=H||(b+j>=0&&g[b+j][a+i]))));
+const rst=()=>{g=Array.from({length:H},()=>Array(W).fill(0));pt=0};
+const nw=()=>{ty=Math.random()*7|0;c=SH[ty];x=3;y=0;if(hit(c,x,y))rst()};
+const dr=()=>{q.clearRect(0,0,180,324);g.forEach((r,j)=>r.forEach((v,i)=>{if(v){q.fillStyle=CL[v-1];q.fillRect(i*Z,j*Z,Z-1,Z-1)}}));q.fillStyle=CL[ty];c.forEach((r,j)=>r.forEach((v,i)=>v&&q.fillRect((x+i)*Z,(y+j)*Z,Z-1,Z-1)));$('tsc').textContent='分數 '+pt};
+const end=()=>{clearInterval(iv);T=null;hide()};
+const st=()=>{if(!hit(c,x,y+1)){y++;return}c.forEach((r,j)=>r.forEach((v,i)=>{if(v&&y+j>=0)g[y+j][x+i]=ty+1}));g=g.filter(r=>r.some(v=>!v));pt+=(H-g.length)*100;while(g.length<H)g.unshift(Array(W).fill(0));nw();if(pt>=goal){dr();end();win()}};
+T=k=>{if(k=='ArrowLeft'&&!hit(c,x-1,y))x--;else if(k=='ArrowRight'&&!hit(c,x+1,y))x++;else if(k=='ArrowDown')st();else if(k=='ArrowUp'||k==' '){const r=c[0].map((_,i)=>c.map(r=>r[i]).reverse());if(!hit(r,x,y))c=r}dr()};
+rst();nw();dr();iv=setInterval(()=>{st();dr()},550)}
+// ---------- Level 4
+const cc2=document.createElement('canvas');cc2.width=cc2.height=256;const cg=cc2.getContext('2d'),ct=new THREE.CanvasTexture(cc2),TP=Math.PI*2;
+function hand(a,l,w){cg.lineWidth=w;cg.beginPath();cg.moveTo(128,128);cg.lineTo(128+Math.sin(a)*l,128-Math.cos(a)*l);cg.stroke()}
+function dc(m,h){cg.fillStyle='#f5ecd0';cg.fillRect(0,0,256,256);cg.strokeStyle=cg.fillStyle='#432';cg.lineWidth=8;cg.beginPath();cg.arc(128,128,118,0,7);cg.stroke();cg.font='22px serif';cg.textAlign='center';for(let i=1;i<=12;i++){const a=i*Math.PI/6;cg.fillText(i,128+Math.sin(a)*96,136-Math.cos(a)*96)}hand(h,60,8);hand(m,95,5);ct.needsUpdate=true}
+let placed=0;
+function L4(){placed=0;party=false;mkRoom(0x7a6a9a);
+const cl=new THREE.Mesh(new THREE.PlaneGeometry(4,4),new THREE.MeshBasicMaterial({map:ct}));cl.position.set(0,3.6,-7.7);sc.add(cl);dc(TP*59/60,TP*11.983/12);
+const cols=[0xff5577,0x55ccff,0xffdd55],A=[];
+[[-6,-3],[6,-3],[0,-6.2]].forEach(([x,z],i)=>{const a=box(1.2,1,1.2,0xddd0c0,x,.5,z);A.push(a);act(a,'祭壇（放上時空碎片）',()=>{if(a.userData.on)return;a.userData.on=1;placed++;beep();const g=new THREE.Mesh(new THREE.OctahedronGeometry(.3),new THREE.MeshBasicMaterial({color:cols[i]}));g.position.set(x,1.5,z);sc.add(g);dyn.push(dt=>{g.rotation.y+=dt*2});
+const v=new THREE.Vector3(x,1.5,z),e=new THREE.Vector3(0,3.6,-7.5),d=v.distanceTo(e),b=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,d),new THREE.MeshBasicMaterial({color:cols[i]}));b.position.copy(v).lerp(e,.5);b.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),e.clone().sub(v).normalize());sc.add(b);
+toast(`放上碎片 ${placed}/3`);if(placed==3)fin()})})}
+function fin(){items=[];let t=0;const m0=TP*59/60,h0=TP*11.983/12;dyn.push(dt=>{t+=dt;const e=Math.min(t/3.2,1);dc(m0+e*(TP*11-m0),h0+e*(TP-h0));shake=t<3.2?.08:0;if(t>=3.2){shake=0;dc(0,0);bday();return true}})}
+function bday(){party=true;const bg=new THREE.Color(0x5a1055);sc.background=bg;sc.fog.color=bg;
+const l1=new THREE.PointLight(0xff33cc,1.6,30),l2=new THREE.PointLight(0x33ccff,1.6,30);sc.add(l1,l2);
+const cf=[],g=new THREE.PlaneGeometry(.14,.22),cs=[0xff4466,0xffdd44,0x44ddff,0x88ff66,0xffffff,0xcc66ff].map(c=>new THREE.MeshBasicMaterial({color:c,side:2}));
+for(let i=0;i<180;i++){const m=new THREE.Mesh(g,cs[i%6]);m.position.set(Math.random()*15-7.5,Math.random()*8,Math.random()*15-7.5);m.rotation.set(Math.random()*6,Math.random()*6,0);sc.add(m);cf.push(m)}
+dyn.push(dt=>{const t=performance.now()/600;l1.position.set(Math.sin(t)*6,3,Math.cos(t)*6);l2.position.set(-Math.sin(t)*6,3,-Math.cos(t)*6);cf.forEach(m=>{m.position.y-=dt*1.6;m.rotation.x+=dt*3;m.rotation.z+=dt*2;if(m.position.y<0)m.position.y=8})});
+$('big').textContent='🎉 00:00　媽媽，生日快樂！🎉';$('tip').textContent='';
+const N=[392,392,440,392,523,494,392,392,440,392,587,523,392,392,784,659,523,494,440,698,698,659,523,587,523],B=[.5,.5,1,1,1,2,.5,.5,1,1,1,2,.5,.5,1,1,1,1,2,.5,.5,1,1,1,2];let at=0;N.forEach((f,i)=>{tone(f,B[i]*.35,.15,at*.38,'triangle');at+=B[i]});
+setTimeout(()=>sp('媽媽，生日快樂！'),500);hud();$('h').innerHTML='🎂 打破迴圈，生日到了！<br><small>即將傳送到派對樂園…</small>';setTimeout(park,5000)}
+// ---------- Level 2 小地圖（只顯示附近視野）
+const dirT=(dx,dz)=>['北','東北','東','東南','南','西南','西','西北'][Math.round(Math.atan2(dx,-dz)/(Math.PI/4)+8)%8];
+function mmDraw(){const q=$('mm').getContext('2d'),{n,S,g,ms,fx,fz}=MM,W=276,c=W/2,R=3.2*S,k=c/R,w2=(x,z)=>[c+(x-P.x)*k,c+(z-P.z)*k];
+q.clearRect(0,0,W,W);q.save();q.beginPath();q.arc(c,c,c-2,0,7);q.clip();q.fillStyle='#0a0714';q.fillRect(0,0,W,W);
+for(let r=0;r<n;r++)for(let cc=0;cc<n;cc++){const x=(cc-(n-1)/2)*S,z=(r-(n-1)/2)*S;if(Math.abs(x-P.x)>R+S||Math.abs(z-P.z)>R+S)continue;const[a,b]=w2(x-S/2,z-S/2);q.fillStyle=g[r][cc]?'#6b5a96':'#2b2145';q.fillRect(a,b,S*k+1,S*k+1)}
+ms.forEach(m=>{if(!m.parent)return;const[a,b]=w2(m.position.x,m.position.z);q.fillStyle='#fc3';q.beginPath();q.arc(a,b,7,0,7);q.fill()});
+if(fx!=null){const[a,b]=w2(fx,fz);q.fillStyle='#f6a';q.fillRect(a-7,b-7,14,14)}
+q.save();q.translate(c,c);q.rotate(-P.yaw);q.fillStyle='#fff';q.beginPath();q.moveTo(0,-13);q.lineTo(10,11);q.lineTo(-10,11);q.closePath();q.fill();q.restore();q.restore();
+q.strokeStyle='#ffcf5c';q.lineWidth=3;q.beginPath();q.arc(c,c,c-2,0,7);q.stroke();
+const rest=ms.filter(m=>m.parent);let h;
+if(rest.length){let b=1e9,bx=0,bz=0;rest.forEach(m=>{const d=Math.hypot(m.position.x-P.x,m.position.z-P.z);if(d<b){b=d;bx=m.position.x-P.x;bz=m.position.z-P.z}});h=`🧩 還有 ${rest.length} 塊拼圖<br>最近的在${dirT(bx,bz)}方，約 ${Math.round(b/S)} 格`}
+else if(!MZ.open)h=`🖼️ 拼圖集齊！<br>畫框在${dirT(fx-P.x,fz-P.z)}方，回去拼蛋糕`;else h='🚪 出口已開，往北走去跑酷！';
+h+='<br><span style="color:#aaa">▲你　🟡拼圖　🟪畫框<br>只看得到附近</span>';if(MM.t!=h){MM.t=h;$('mh').innerHTML=h}}
+// ---------- Level 4 生日派對樂園（時鐘集滿後傳送）
+const EX=[['📜 神諭石板','第一關的神諭：被遮住的字母，一個一個依序找回來。'],['🎂 蛋糕拼圖','第二關的迷宮裡，四塊拼圖拼出了一個蛋糕。'],['🍫 巧克力與金幣','第三關的競技場：一枚金幣換一塊巧克力，再換一個寶箱。'],['💠 時空碎片','三塊碎片放上祭壇，時鐘終於走到 00:00。'],['💌 給媽媽','媽媽，生日快樂！謝謝你陪我們過了好多個「昨天」。']];
+const EAT=['🍰 好好吃！','🍓 草莓好甜～','🍫 巧克力好濃！','😋 再來一塊！'];
+function park(){$('f').style.opacity=1;setTimeout(()=>{sc.clear();items=[];plats=[];dyn=[];pkOn=1;party=true;
+const bg=new THREE.Color(0x3a1060);sc.background=bg;sc.fog=new THREE.Fog(bg,25,90);sc.add(new THREE.AmbientLight(0xffffff,.9));
+const sun=new THREE.PointLight(0xffe9b0,.8,90);sun.position.set(0,25,0);sc.add(sun);
+const l1=new THREE.PointLight(0xff33cc,1.2,40),l2=new THREE.PointLight(0x33ccff,1.2,40);sc.add(l1,l2);dyn.push(()=>{const t=performance.now()/700;l1.position.set(Math.sin(t)*20,5,Math.cos(t)*20);l2.position.set(-Math.sin(t)*20,5,-Math.cos(t)*20)});
+const OB=[],wall=(x1,z1,x2,z2,h,c)=>{OB.push([x1,z1,x2,z2]);return box(x2-x1,h,z2-z1,c,(x1+x2)/2,h/2,(z1+z2)/2)};
+MZ={in:(x,z)=>Math.abs(x)<30&&Math.abs(z)<30,bl:(x,z)=>Math.abs(x)>29||Math.abs(z)>29||OB.some(([a,b,c,d])=>x>a-.3&&x<c+.3&&z>b-.3&&z<d+.3)};
+box(60,.2,60,0x4aa86a,0,-.1,0);box(4,.02,60,0xe8d9b0,0,.01,0);box(60,.02,4,0xe8d9b0,0,.01,0);
+[[0,-29.5,60,1],[0,29.5,60,1],[-29.5,0,1,60],[29.5,0,1,60]].forEach(([x,z,w,d])=>box(w,2,d,0x2d7a4a,x,1,z));
+const lb=(t,x,y,z,w=4,fs=44)=>label(t,x,y,z,Math.atan2(-x,24-z),w,w/2,fs);
+// 氣球與彩紙
+const bm=[0xff4466,0xffdd44,0x44ddff,0x88ff66,0xcc66ff].map(c=>new THREE.MeshStandardMaterial({color:c})),bg2=new THREE.SphereGeometry(.45,12,10);
+for(let i=0;i<36;i++){const b=new THREE.Mesh(bg2,bm[i%5]),x=Math.random()*54-27,z=Math.random()*54-27,y=3+Math.random()*4,o=Math.random()*9;b.position.set(x,y,z);sc.add(b);dyn.push(t=>{b.position.y=y+Math.sin(performance.now()/800+o)*.4})}
+const cg2=new THREE.PlaneGeometry(.14,.22),cs2=[0xff4466,0xffdd44,0x44ddff,0x88ff66,0xffffff,0xcc66ff].map(c=>new THREE.MeshBasicMaterial({color:c,side:2})),cf=[];
+for(let i=0;i<120;i++){const m=new THREE.Mesh(cg2,cs2[i%6]);m.position.set(Math.random()*56-28,Math.random()*9,Math.random()*56-28);sc.add(m);cf.push(m)}
+dyn.push(dt=>{cf.forEach(m=>{m.position.y-=dt*1.4;m.rotation.x+=dt*3;if(m.position.y<0)m.position.y=9})});
+// 🍰 蛋糕區（東）
+box(5,.9,3.4,0xb5651d,20,.45,-2);lb('🍰 蛋糕區',20,4.5,-2);
+const wc=[0xffb6d5,0xfff1d0],eatF=(m,tip)=>act(m,tip,()=>{m.visible=false;items=items.filter(i=>i!==m);tone(700,.12,.12);toast(`${EAT[Math.random()*4|0]}（已吃 ${++eat} 份）`);setTimeout(()=>{m.visible=true;items.push(m)},5000)});
+for(let i=0;i<8;i++){const w=new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.2,.8,6,1,false,i*Math.PI/4,Math.PI/4),new THREE.MeshStandardMaterial({color:wc[i%2]}));w.position.set(20,1.3,-2);sc.add(w);eatF(w,'🍰 吃蛋糕（互動）')}
+for(let i=0;i<5;i++){const u=new THREE.Mesh(new THREE.CylinderGeometry(.22,.16,.3,10),new THREE.MeshStandardMaterial({color:[0xff7799,0x99ddff,0xffee88][i%3]}));u.position.set(18.5+i*.75,1.05,0);sc.add(u);eatF(u,'🧁 吃杯子蛋糕（互動）')}
+// 🛝 滑梯（西）
+lb('🛝 滑滑梯',-24,8,-2);
+for(let i=0;i<8;i++){const t=.55*(i+1),z=8-i*1.2;box(2.4,t,1.2,i%2?0xff9ec4:0x9edcff,-24,t/2,z);plats.push({x:-24,z,w:2.4,d:1.2,top:t})}
+box(3,4.4,3,0xffd966,-24,2.2,-2.5);plats.push({x:-24,z:-2.5,w:3,d:3,top:4.4});
+const rp=box(1.8,.2,14.6,0xff5577,-24,2.35,-11);rp.rotation.x=-Math.atan(4.1/14);
+[-.9,.9].forEach(s=>{const r=box(.15,.5,14.6,0xffffff,-24+s,2.65,-11);r.rotation.x=rp.rotation.x});
+const sg=box(.6,.6,.6,0xffcc33,-24,5.2,-3.4);sg.material.emissive=new THREE.Color(0xaa7700);
+act(sg,'🛝 滑下去！（互動）',()=>{if(mod)return;mod=true;let t=0;tone(500,.6,.1,0,'triangle');dyn.push(dt=>{t+=dt;const e=Math.min(t/2.2,1);P.x=-24;P.z=-4-14*e;P.y=4.5-4.2*e;P.vy=0;if(e>=1){mod=false;return true}})});
+// 😴 睡覺區（東南）
+lb('😴 睡覺區',18,3.6,20);box(5,.03,5,0x7a5ab8,18,.02,20);box(2.4,.5,3.6,0x8a5a3a,18,.25,20);
+const mt=box(2.2,.3,3.4,0xffffff,18,.65,20),pl=box(1.6,.25,.7,0xffd1e8,18,.95,18.6),bk=box(2.2,.2,2,0x6a8ae8,18,.9,20.7),lm=new THREE.PointLight(0xffc880,.8,12);lm.position.set(20.5,2,20);sc.add(lm);box(.3,1.4,.3,0x553322,20.5,.7,20);
+[mt,pl,bk].forEach(m=>act(m,'😴 睡一覺（互動）',()=>{$('f').style.opacity=.8;show(`<h3>💤 Zzz…</h3><p>好舒服～睡一覺，明天就是新的一天。<br>（這次明天真的會來了）</p><button onclick="hide();$('f').style.opacity=0;tone(660,.3,.1)">起床</button>`);[392,330,262].forEach((f,i)=>tone(f,.9,.06,i*.8))}));
+// 🏛️ 爐滿博物館（北）
+const WC=0xe8dcc8;wall(-8.5,-27.5,8.5,-27,5,WC);wall(-8.5,-27.5,-8,-17.5,5,WC);wall(8,-27.5,8.5,-17.5,5,WC);wall(-8.5,-18,-1.8,-17.5,5,WC);wall(1.8,-18,8.5,-17.5,5,WC);
+box(17.6,.4,10.6,0xb89a5a,0,5.2,-22.5);box(16,.04,9.5,0x8a1230,0,.03,-22.5);const ml=new THREE.PointLight(0xfff0c0,1,24);ml.position.set(0,4,-22.5);sc.add(ml);
+label('🏛️ 爐滿博物館',0,4.3,-17.3,0,6,2,34);
+EX.forEach(([t,d],i)=>{const x=-6.4+i*3.2;box(1.4,1.1,1.4,0xddd0c0,x,.55,-25);let m;
+if(i==3){m=new THREE.Mesh(new THREE.OctahedronGeometry(.45),new THREE.MeshBasicMaterial({color:0xffcc33}));dyn.push(dt=>{m.rotation.y+=dt*2})}
+else m=new THREE.Mesh(i==4?new THREE.CylinderGeometry(.5,.5,.5,16):new THREE.BoxGeometry(...[[.9,.9,.2],[.8,.8,.3],[.7,.35,.45]][i]),new THREE.MeshStandardMaterial({color:[0x8a7f5a,0xffd1e8,0x4a2410,0,0xff88aa][i]}));
+m.position.set(x,i==3?1.9:1.55,-25);sc.add(m);act(m,`${t}（互動）`,()=>show(`<h3>${t}</h3><p>${d}</p><button onclick="hide()">好</button>`))});
+parkPlus(OB,lb);Object.assign(P,{x:0,y:0,z:24,vy:0,yaw:0,pit:0});RS=[0,24];
+$('big').textContent='';$('h').innerHTML='🎂 生日派對樂園<br><small>蛋糕・滑梯・睡覺・博物館・旋轉木馬・煙火・射氣球・鋼琴・蹦蹦床</small>';toast('🎉 派對樂園到了！隨便逛逛吧',4000);$('f').style.opacity=0},500)}
+// ---------- 派對樂園：高畫質強化 + 5 個新玩法
+function parkPlus(OB,lb){
+R.outputEncoding=THREE.sRGBEncoding;R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.1;R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFSoftShadowMap;
+sc.children.forEach(o=>{if(o.isAmbientLight)o.intensity=.4});sc.fog.near=40;sc.fog.far=140;sc.add(new THREE.HemisphereLight(0x9a8cff,0x3a6a4a,.55));
+const mo=new THREE.DirectionalLight(0xbcd0ff,1);mo.position.set(-25,40,20);mo.castShadow=true;mo.shadow.mapSize.set(2048,2048);const sh=mo.shadow.camera;sh.left=sh.bottom=-38;sh.right=sh.top=38;sh.near=1;sh.far=120;mo.shadow.bias=-.0004;sc.add(mo);
+const M=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.6,metalness:.1},o||{})),add=(g,m,x,y,z)=>{const o=new THREE.Mesh(g,m);o.position.set(x,y,z);sc.add(o);return o},rn=(a,b)=>a+Math.random()*(b-a),d=new THREE.Object3D(),hsl=(h,s,l)=>new THREE.Color().setHSL(h,s,l),V3=new THREE.Vector3();
+const tx=(w,f,rp)=>{const c=document.createElement('canvas');c.width=c.height=w;f(c.getContext('2d'),w);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rp,rp);t.encoding=THREE.sRGBEncoding;t.anisotropy=8;return t};
+const grass=tx(256,(g,w)=>{g.fillStyle='#3f9a58';g.fillRect(0,0,w,w);for(let i=0;i<3500;i++){g.fillStyle=`hsl(${105+Math.random()*30},${45+Math.random()*25}%,${28+Math.random()*22}%)`;g.fillRect(Math.random()*w,Math.random()*w,1.5,4)}},14);
+const stone=tx(256,(g,w)=>{g.fillStyle='#6f6355';g.fillRect(0,0,w,w);for(let j=0;j<8;j++)for(let i=0;i<8;i++){g.fillStyle=`hsl(35,${15+Math.random()*10}%,${52+Math.random()*18}%)`;g.beginPath();(g.roundRect||g.rect).call(g,i*32+(j%2)*16+2,j*32+2,28,28,8);g.fill()}},1);
+sc.children.forEach(o=>{const p=o.geometry&&o.geometry.parameters;if(!p||!o.material.color)return;
+if(p.width==60&&p.height==.2){o.material.map=grass;o.material.color.set(0xffffff);o.material.roughness=1;o.material.needsUpdate=true}
+else if(p.height==.02){const t=stone.clone();t.needsUpdate=true;p.depth==60?t.repeat.set(1,15):t.repeat.set(15,1);o.material.map=t;o.material.color.set(0xffffff);o.material.needsUpdate=true}});
+// 星空、月亮
+const skyT=tx(512,(g,w)=>{const gr=g.createLinearGradient(0,0,0,w);gr.addColorStop(0,'#0b0630');gr.addColorStop(.55,'#4a1670');gr.addColorStop(1,'#d86aa0');g.fillStyle=gr;g.fillRect(0,0,w,w);for(let i=0;i<500;i++){g.fillStyle=`rgba(255,255,255,${rn(.3,1)})`;g.fillRect(rn(0,w),rn(0,w*.6),rn(1,2.2),rn(1,2.2))}},1);
+[[add(new THREE.SphereGeometry(150,32,20),new THREE.MeshBasicMaterial({map:skyT,side:THREE.BackSide,fog:false}),0,0,0)],[add(new THREE.SphereGeometry(7,32,20),new THREE.MeshBasicMaterial({color:0xfff6d8,fog:false}),-60,75,-95)],[add(new THREE.SphereGeometry(11,32,20),new THREE.MeshBasicMaterial({color:0xffe9a8,transparent:true,opacity:.18,fog:false}),-60,75,-95)]].forEach(a=>a[0].userData.ns=1);
+// 排除區（花、樹不要長在設施上）
+const ex=(x,z)=>(Math.abs(x)<2.8||Math.abs(z)<2.8)||(Math.abs(x)<10&&z<-16)||(x>14&&x<26&&Math.abs(z+1)<5)||(x<-21&&x>-27&&z>-19&&z<9)||(x>14&&z>16)||Math.hypot(x+12,z-14)<5||Math.hypot(x+12,z-3)<4||(x>7&&x<18&&z>-14&&z<-9)||Math.hypot(x+10,z+9)<6||Math.hypot(x-8,z-13)<3||Math.hypot(x,z)<5||(x>12&&z<-17)||(Math.abs(x)<4.5&&z>15&&z<22);
+// 樹木 + 樹上彩燈
+const tp=[];for(let x=-26;x<=26;x+=5.2){if(Math.abs(x)>3){tp.push([x,26.5]);if(Math.abs(x)>11)tp.push([x,-26.5])}}for(let z=-21;z<=21;z+=5.2)tp.push([-27,z],[27,z]);
+const tr=new THREE.InstancedMesh(new THREE.CylinderGeometry(.3,.45,3,10),M(0x5a3a22,{roughness:.9}),tp.length),fo=new THREE.InstancedMesh(new THREE.ConeGeometry(2.1,3.2,12),M(0x2f8f55,{roughness:.9}),tp.length*3),fl=new THREE.InstancedMesh(new THREE.SphereGeometry(.08,8,6),new THREE.MeshBasicMaterial({color:0xffffff}),tp.length*10);
+tp.forEach(([x,z],i)=>{const s=rn(.9,1.35);d.rotation.set(0,0,0);d.position.set(x,1.5*s,z);d.scale.setScalar(s);d.updateMatrix();tr.setMatrixAt(i,d.matrix);
+for(let k=0;k<3;k++){d.position.set(x,(3+k*1.5)*s,z);d.scale.setScalar(s*(1.15-k*.28));d.updateMatrix();fo.setMatrixAt(i*3+k,d.matrix);fo.setColorAt(i*3+k,hsl(rn(.33,.42),.55,rn(.22,.34)))}
+for(let k=0;k<10;k++){const a=rn(0,6.28),y=rn(2.8,6)*s,r=(1.9-(y/s-2.8)*.4)*s;d.position.set(x+Math.cos(a)*r,y,z+Math.sin(a)*r);d.scale.setScalar(1);d.updateMatrix();fl.setMatrixAt(i*10+k,d.matrix);fl.setColorAt(i*10+k,hsl(rn(0,1),.9,.7))}});
+sc.add(tr,fo,fl);fl.userData.ns=1;
+// 花海
+const FN=420,fh=new THREE.InstancedMesh(new THREE.SphereGeometry(.12,10,8),M(0xffffff,{roughness:.5}),FN),fs=new THREE.InstancedMesh(new THREE.CylinderGeometry(.02,.02,.5,5),M(0x2c7a3a),FN);
+for(let i=0,n=0;n<FN&&i<4000;i++){const x=rn(-27,27),z=rn(-27,27);if(ex(x,z))continue;const h=rn(.3,.6);d.rotation.set(0,0,0);d.scale.set(1,h/.5,1);d.position.set(x,h/2,z);d.updateMatrix();fs.setMatrixAt(n,d.matrix);d.scale.setScalar(1);d.position.y=h;d.updateMatrix();fh.setMatrixAt(n,d.matrix);fh.setColorAt(n,hsl(rn(0,1),.85,.65));n++}
+sc.add(fh,fs);fh.userData.ns=fs.userData.ns=1;
+// 路燈 + 旗幟串
+const LP=[[-3,18],[3,18],[-3,8],[3,8],[-3,-9],[3,-9]],pm=M(0x2a2a38,{metalness:.8,roughness:.35});
+LP.forEach(([x,z])=>{add(new THREE.CylinderGeometry(.07,.1,4.2,10),pm,x,2.1,z);add(new THREE.SphereGeometry(.28,16,12),new THREE.MeshBasicMaterial({color:0xffe9b0}),x,4.3,z);add(new THREE.ConeGeometry(.4,.3,12),pm,x,4.65,z)});
+const bunting=(a,b)=>{const N=18,pts=[],fg=new THREE.InstancedMesh(new THREE.ConeGeometry(.16,.4,3),M(0xffffff,{side:2}),N);for(let i=0;i<=N;i++){const t=i/N;pts.push(new THREE.Vector3(a[0]+(b[0]-a[0])*t,4.15-1.6*t*(1-t),a[1]+(b[1]-a[1])*t))}
+for(let i=0;i<N;i++){const p=pts[i];d.rotation.set(Math.PI,0,0);d.position.set(p.x,p.y-.2,p.z);d.scale.setScalar(1);d.updateMatrix();fg.setMatrixAt(i,d.matrix);fg.setColorAt(i,hsl(i*.13%1,.85,.6))}
+sc.add(fg,new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0xddddcc})));fg.userData.ns=1};
+[[0,1],[2,3],[4,5],[0,2],[1,3],[2,4],[3,5]].forEach(([i,j])=>bunting(LP[i],LP[j]));
+// 噴泉
+const sm=M(0xc9c0b0,{roughness:.5}),wm=M(0x4fc3ff,{roughness:.05,metalness:.2,transparent:true,opacity:.8,emissive:0x0a3050});
+add(new THREE.CylinderGeometry(3.2,3.4,.8,48),sm,0,.4,0);add(new THREE.CylinderGeometry(2.9,2.9,.05,48),wm,0,.72,0);add(new THREE.CylinderGeometry(.35,.5,1.8,16),sm,0,1.3,0);add(new THREE.CylinderGeometry(1.2,.6,.4,32),sm,0,2.2,0);add(new THREE.CylinderGeometry(1.1,1.1,.05,32),wm,0,2.4,0);OB.push([-3.3,-3.3,3.3,3.3]);
+const fw=new THREE.PointLight(0x66ccff,.9,12);fw.position.set(0,2.5,0);sc.add(fw);
+const dr=new THREE.InstancedMesh(new THREE.SphereGeometry(.07,8,6),wm,90),da=[...Array(90)].map((_,i)=>[i/90*6.283*3,Math.random()]);dr.userData.ns=1;sc.add(dr);
+dyn.push(()=>{const t=performance.now()/1000;da.forEach(([a,ph],i)=>{const u=(t*.8+ph)%1;d.rotation.set(0,0,0);d.scale.setScalar(1);d.position.set(Math.cos(a)*u*2.4,2.5+1.8*(1-(2*u-1)**2)-1.7*u,Math.sin(a)*u*2.4);d.updateMatrix();dr.setMatrixAt(i,d.matrix)});dr.instanceMatrix.needsUpdate=true});
+// 入口金拱門
+const gm=M(0xd4af37,{metalness:.9,roughness:.25});[-3,3].forEach(x=>add(new THREE.CylinderGeometry(.22,.26,5,16),gm,x,2.5,20));add(new THREE.TorusGeometry(3,.2,16,48,Math.PI),gm,0,5,20);label('🎂 生日快樂',0,6.4,20,0,5,2.5,36);
+// 摩天輪（裝飾）
+const W=new THREE.Group(),wr=M(0xf0f0f8,{metalness:.7,roughness:.3}),gd=[];W.position.set(20,7.8,-23);sc.add(W);
+[-.6,.6].forEach(z=>{const r=new THREE.Mesh(new THREE.TorusGeometry(6.5,.12,12,64),wr);r.position.z=z;W.add(r)});
+for(let i=0;i<12;i++){const a=i*Math.PI/6,sp=new THREE.Mesh(new THREE.BoxGeometry(.08,6.5,.08),wr);sp.position.set(Math.sin(a)*3.25,Math.cos(a)*3.25,0);sp.rotation.z=-a;W.add(sp);
+const g=new THREE.Group();g.position.set(Math.sin(a)*6.5,Math.cos(a)*6.5,0);const cb=new THREE.Mesh(new THREE.BoxGeometry(1.1,.8,.9),M(hsl(i/12,.7,.6)));cb.position.y=-.55;const rf=new THREE.Mesh(new THREE.ConeGeometry(.8,.5,4),M(0xffffff));rf.position.y=.05;rf.rotation.y=Math.PI/4;g.add(cb,rf);W.add(g);gd.push(g)}
+const rl=new THREE.InstancedMesh(new THREE.SphereGeometry(.1,8,6),new THREE.MeshBasicMaterial({color:0xffffff}),48);for(let i=0;i<48;i++){const a=i/48*6.283;d.rotation.set(0,0,0);d.scale.setScalar(1);d.position.set(Math.sin(a)*6.6,Math.cos(a)*6.6,i%2?.6:-.6);d.updateMatrix();rl.setMatrixAt(i,d.matrix);rl.setColorAt(i,hsl(i/48,1,.65))}W.add(rl);rl.userData.ns=1;
+add(new THREE.CylinderGeometry(.5,.5,1.6,16),wr,20,7.8,-23).rotation.x=Math.PI/2;
+[-.6,.6].forEach(z=>[-1,1].forEach(s=>{const l=add(new THREE.BoxGeometry(.3,8.76,.3),wr,20+s*2,3.9,-23+z);l.rotation.z=s*.474}));
+dyn.push(dt=>{W.rotation.z-=dt*.12;gd.forEach(g=>g.rotation.z=-W.rotation.z)});
+// 熒火蟲
+const FF=200,fp=new Float32Array(FF*3).map((_,i)=>i%3==1?rn(.5,5):rn(-27,27)),fg2=new THREE.BufferGeometry();fg2.setAttribute('position',new THREE.BufferAttribute(fp,3));const ff=new THREE.Points(fg2,new THREE.PointsMaterial({color:0xd8ff80,size:.18,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));ff.frustumCulled=false;sc.add(ff);
+dyn.push(dt=>{const t=performance.now()/1500;for(let i=0;i<FF;i++){fp[i*3]+=Math.sin(t+i)*dt*.4;fp[i*3+1]+=Math.cos(t*1.3+i*2)*dt*.25;fp[i*3+2]+=Math.cos(t+i*3)*dt*.4}fg2.attributes.position.needsUpdate=true});
+// ===== 新玩法 1：🎠 旋轉木馬
+const cx=-12,cz=14,cgp=new THREE.Group(),hs=[];cgp.position.set(cx,0,cz);sc.add(cgp);
+const cm=(g,m,x,y,z)=>{const o=new THREE.Mesh(g,m);o.position.set(x,y,z);cgp.add(o);return o};
+const cb=cm(new THREE.CylinderGeometry(3.4,3.4,.35,48),M(0xffd1e8),0,.17,0);cm(new THREE.CylinderGeometry(.35,.35,4,16),gm,0,2,0);cm(new THREE.ConeGeometry(3.8,1.6,24),M(0xff5577),0,4.4,0);cm(new THREE.TorusGeometry(3.6,.1,10,48),gm,0,3.6,0).rotation.x=Math.PI/2;
+for(let i=0;i<6;i++){const a=i*Math.PI/3,x=Math.cos(a)*2.3,z=Math.sin(a)*2.3;cm(new THREE.CylinderGeometry(.04,.04,3.2,8),gm,x,1.9,z);
+const h=new THREE.Group(),hc=M(hsl(i/6,.6,.85)),pb=(w,hh,dd,xx,yy,zz)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,hh,dd),hc);o.position.set(xx,yy,zz);h.add(o)};
+pb(.35,.4,1,0,0,0);pb(.22,.4,.3,0,.4,.5);pb(.18,.18,.3,0,.5,.72);pb(.06,.4,.1,0,.4,.3);[[-.12,-.35],[.12,-.35],[-.12,.35],[.12,.35]].forEach(([lx,lz])=>pb(.1,.4,.1,lx,-.4,lz));
+h.position.set(x,1.1,z);h.rotation.y=-a;cgp.add(h);hs.push(h);h.traverse(m=>m.isMesh&&act(m,'🎠 騎旋轉木馬（互動）',ride))}
+act(cb,'🎠 騎旋轉木馬（互動）',ride);
+dyn.push(dt=>{cgp.rotation.y-=dt*.8;hs.forEach((h,i)=>h.position.y=1.1+Math.sin(performance.now()/500+i)*.35)});
+function ride(){if(mod)return;mod=true;let t=0,px=null,pz;for(let i=0;i<24;i++)tone([523,659,784,659][i%4]*(i%8<4?1:.75),.35,.05,i*.5,'triangle');toast('🎠 轉啊轉～',3000);
+dyn.push(dt=>{t+=dt;hs[0].getWorldPosition(V3);P.x=V3.x;P.z=V3.z;P.y=V3.y-.4;P.vy=0;if(px!=null){const dx=V3.x-px,dz=V3.z-pz;if(dx*dx+dz*dz>1e-8)P.yaw=Math.atan2(-dx,-dz)}px=V3.x;pz=V3.z;if(t>12){P.x=cx;P.z=cz+4.4;P.y=0;mod=false;return true}})}
+// ===== 新玩法 2：🎆 煙火
+add(new THREE.BoxGeometry(1.6,.5,1.6),M(0x333344),8,.25,13);
+const bt=add(new THREE.CylinderGeometry(.35,.35,.25,24),M(0xff3344,{emissive:0x881122}),8,.62,13);
+[-.5,0,.5].forEach(o=>add(new THREE.CylinderGeometry(.1,.1,1.4,10),M(0xdd2233),8+o,1.2,12.2));
+const burst=()=>{const x=rn(-12,12),y=rn(16,24),z=rn(-8,6),n=140,pos=new Float32Array(n*3),vel=[];for(let i=0;i<n;i++){const u=rn(0,6.283),v=Math.acos(rn(-1,1)),s=rn(4,8);vel.push([Math.sin(v)*Math.cos(u)*s,Math.cos(v)*s,Math.sin(v)*Math.sin(u)*s])}
+const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));const m=new THREE.PointsMaterial({color:hsl(Math.random(),1,.6),size:.6,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}),p=new THREE.Points(g,m);p.position.set(x,y,z);p.frustumCulled=false;sc.add(p);let t=0;tone(rn(100,160),.5,.18,0,'sawtooth');tone(900,.15,.06,.05,'square');
+dyn.push(dt=>{t+=dt;for(let i=0;i<n;i++){pos[i*3]=vel[i][0]*t;pos[i*3+1]=vel[i][1]*t-3*t*t;pos[i*3+2]=vel[i][2]*t}g.attributes.position.needsUpdate=true;m.opacity=Math.max(0,1-t/2.4);if(t>2.4){sc.remove(p);g.dispose();m.dispose();return true}})};
+act(bt,'🎆 放煙火（互動）',()=>{burst();setTimeout(burst,350);setTimeout(burst,800);toast('🎆 砰！砰！砰！')});
+// ===== 新玩法 3：🎈 射氣球
+add(new THREE.BoxGeometry(5,1,.8),M(0x8a5a3a),-10,.5,-8);[-2.6,2.6].forEach(o=>add(new THREE.BoxGeometry(.2,3,.2),M(0x8a5a3a),-10+o,1.5,-8));add(new THREE.BoxGeometry(5.8,.15,2.4),M(0xff4466),-10,3.1,-8.4).rotation.x=.25;
+let ps2=0;for(let i=0;i<6;i++){const b=add(new THREE.SphereGeometry(.5,24,18),M(hsl(i/6,.8,.6),{roughness:.25}),-12.5+i,2.3,-11.5);b.scale.y=1.15;const y0=2.3,o=i;dyn.push(()=>{b.position.y=y0+Math.sin(performance.now()/600+o)*.25});
+act(b,'🎈 戳氣球（互動）',()=>{b.visible=false;items=items.filter(q=>q!==b);tone(300,.08,.2,0,'square');toast(`🎈 啵！已擊破 ${++ps2} 顆${ps2%6?'':'　🏆 太強了！'}`);setTimeout(()=>{b.visible=true;items.push(b)},4000)})}
+// ===== 新玩法 4：🎹 地板鋼琴
+add(new THREE.BoxGeometry(8.2,.05,3),M(0x222233),12.8,.03,-11);
+const key=(m,f)=>act(m,'🎹 彈奏（互動）',()=>{tone(f,.7,.2,0,'triangle');m.position.y-=.07;setTimeout(()=>m.position.y+=.07,150)});
+[262,294,330,349,392,440,494,523].forEach((f,i)=>key(add(new THREE.BoxGeometry(.82,.2,2.2),M(hsl(i/8,.5,.85),{emissive:hsl(i/8,.9,.25)}),9.4+i*.9,.1,-11),f));
+[[0,277],[1,311],[3,370],[4,415],[5,466]].forEach(([i,f])=>key(add(new THREE.BoxGeometry(.5,.3,1.3),M(0x1a1a22,{roughness:.3}),9.85+i*.9,.2,-11.4),f));
+// ===== 新玩法 5：🤸 蹦蹦床（走上去就會彈）
+add(new THREE.TorusGeometry(2.4,.16,16,48),M(0xe03a4a,{metalness:.6,roughness:.3}),-12,.5,3).rotation.x=Math.PI/2;add(new THREE.CylinderGeometry(2.3,2.3,.1,48),M(0x1a3a8a),-12,.45,3);
+for(let i=0;i<8;i++){const a=i*Math.PI/4;add(new THREE.CylinderGeometry(.06,.06,.5,8),pm,-12+Math.cos(a)*2.4,.25,3+Math.sin(a)*2.4)}
+plats.push({x:-12,z:3,w:3.6,d:3.6,top:.5});dyn.push(()=>{if(!mod&&Math.hypot(P.x+12,P.z-3)<2&&P.y<=.55&&P.vy<=0)P.vy=14});
+[['🎠 旋轉木馬',-12,6.5,14],['🎆 放煙火',8,3.2,13],['🎈 射氣球',-10,4.6,-8],['🎹 地板鋼琴',12.8,3,-11],['🤸 蹦蹦床',-12,4,3]].forEach(([t,x,y,z])=>lb(t,x,y,z,4,36));
+sc.traverse(o=>{if(!o.isMesh||o.userData.ns)return;o.receiveShadow=true;if(o.geometry.type!='PlaneGeometry')o.castShadow=true});
+}
+// ---------- Controls & loop
+const gr=()=>{let h=(MZ?MZ.in(P.x,P.z):(Math.abs(P.x)<8&&Math.abs(P.z)<8))?0:-Infinity;for(const p of plats)if(Math.abs(P.x-p.x)<p.w/2+.3&&Math.abs(P.z-p.z)<p.d/2+.3&&p.top<=P.y+.6)h=Math.max(h,p.top);return h};
+const use=()=>{if(!mod&&cur&&started)cur.userData.fn()};
+addEventListener('keydown',e=>{if(T){T(e.key);e.preventDefault();return}K[e.key.toLowerCase()]=1;if(!mod&&(e.key=='e'||e.key=='E'||e.key=='Enter'))use();if(e.key==' '&&!mod)e.preventDefault()});
+addEventListener('keyup',e=>K[e.key.toLowerCase()]=0);
+document.addEventListener('mousemove',e=>{if(document.pointerLockElement){P.yaw-=e.movementX*.0025;P.pit=Math.max(-1.4,Math.min(1.4,P.pit-e.movementY*.0025))}});
+$('c').addEventListener('click',()=>{if(!started||mod||matchMedia('(pointer:coarse)').matches)return;document.pointerLockElement?use():$('c').requestPointerLock()});
+let jt=null,jo,lt=null,lx,ly;
+document.addEventListener('touchstart',e=>{if(mod||!started||e.target.closest('button'))return;for(const t of e.changedTouches){if(t.clientX<innerWidth/2&&jt==null){jt=t.identifier;jo=[t.clientX,t.clientY]}else if(lt==null){lt=t.identifier;lx=t.clientX;ly=t.clientY}}},{passive:false});
+document.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches){if(t.identifier==jt){joy.x=Math.max(-1,Math.min(1,(t.clientX-jo[0])/45));joy.y=-Math.max(-1,Math.min(1,(t.clientY-jo[1])/45));$('kn').style.transform=`translate(${joy.x*30}px,${-joy.y*30}px)`}else if(t.identifier==lt){P.yaw-=(t.clientX-lx)*.006;P.pit=Math.max(-1.4,Math.min(1.4,P.pit-(t.clientY-ly)*.006));lx=t.clientX;ly=t.clientY}}},{passive:false});
+document.addEventListener('touchend',e=>{for(const t of e.changedTouches){if(t.identifier==jt){jt=null;joy.x=joy.y=0;$('kn').style.transform=''}if(t.identifier==lt)lt=null}});
+$('bj').addEventListener('touchstart',e=>{e.preventDefault();jmp=1},{passive:false});$('bu').addEventListener('touchstart',e=>{e.preventDefault();use()},{passive:false});
+$('go').onclick=()=>{$('intro').style.display='none';started=true;tone(440,.1,.01);setInterval(()=>{if(!party)tone([262,330,392,440,523][Math.random()*5|0],1.4,.04)},1400);go(1)};
+function tick(dt){
+dyn=dyn.filter(f=>!f(dt));
+if(!mod){const f=(K.w|0)-(K.s|0)+(K.arrowup|0)-(K.arrowdown|0)+joy.y,s=(K.d|0)-(K.a|0)+(K.arrowright|0)-(K.arrowleft|0)+joy.x,l=Math.hypot(f,s)||1,k=Math.min(l,1)*5*dt/l,sy=Math.sin(P.yaw),cy=Math.cos(P.yaw);
+const dx=(-sy*f+cy*s)*k,dz=(-cy*f-sy*s)*k;if(MZ){if(!MZ.bl(P.x+dx,P.z))P.x+=dx;if(!MZ.bl(P.x,P.z+dz))P.z+=dz}else{P.x=Math.max(-7.5,Math.min(7.5,P.x+dx));P.z=Math.max(zmin,Math.min(7.5,P.z+dz))}
+const g=gr();P.vy-=22*dt;P.y+=P.vy*dt;if(P.y<=g){P.y=g;P.vy=0;if(K[' ']||jmp)P.vy=8}jmp=0;
+if(P.y<-15){P.x=RS[0];P.z=RS[1];P.y=0;P.vy=0;toast('掉下去了…重新來過')}}
+cam.position.set(P.x+(shake?(Math.random()-.5)*shake:0),P.y+1.6,P.z+(shake?(Math.random()-.5)*shake:0));cam.rotation.set(P.pit,P.yaw,0,'YXZ');cam.updateMatrixWorld();
+if(MM)mmDraw();if(!mod&&(!party||pkOn)){rc.setFromCamera({x:0,y:0},cam);const h=rc.intersectObjects(items)[0];cur=h&&h.distance<4.5?h.object:null;$('tip').textContent=cur?cur.userData.tip:''}}
+let last=performance.now();(function loop(){requestAnimationFrame(loop);const n=performance.now(),dt=Math.min((n-last)/1000,.05);last=n;if(started)tick(dt);R.render(sc,cam)})();
+</script></body></html>
